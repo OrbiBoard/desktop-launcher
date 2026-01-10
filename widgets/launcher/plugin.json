@@ -1,0 +1,41 @@
+{
+  "id": "desktop-launcher-widget",
+  "name": "启动台",
+  "version": "1.0.0",
+  "type": "component",
+  "entry": "index.html",
+  "description": "桌面快捷启动面板",
+  "icon": "ri-rocket-2-line",
+  "group": "desktop_widget",
+  "recommendedSize": {
+    "width": 380,
+    "height": 280
+  },
+  "configSchema": {
+    "buttons": {
+      "type": "array",
+      "title": "快捷按钮",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "title": "名称" },
+          "icon": { "type": "string", "title": "图标" },
+          "actionType": { "type": "string", "enum": ["plugin", "app", "key"], "title": "动作类型" },
+          "actionPayload": { "type": "object", "title": "动作参数" }
+        }
+      }
+    },
+    "apps": {
+      "type": "array",
+      "title": "桌面应用",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "title": "名称" },
+          "path": { "type": "string", "title": "路径" },
+          "icon": { "type": "string", "title": "图标" }
+        }
+      }
+    }
+  }
+}

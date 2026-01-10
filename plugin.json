@@ -1,0 +1,18 @@
+{
+  "id": "desktop-launcher",
+  "name": "桌面启动台",
+  "version": "1.0.0",
+  "description": "提供桌面启动台组件，支持快捷启动应用与工具",
+  "author": "Trae",
+  "type": "plugin",
+  "componentsDir": "widgets",
+  "icon": "ri-rocket-2-line",
+  "actions": [
+    {
+      "id": "openSettings",
+      "text": "打开设置",
+      "icon": "ri-settings-3-line"
+    }
+  ],
+  "enabled": true
+}
