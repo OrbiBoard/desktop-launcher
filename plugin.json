@@ -1,9 +1,9 @@
 {
   "id": "desktop-launcher",
-  "name": "桌面启动台",
+  "name": "桌面组件.启动台",
   "version": "1.0.0",
   "description": "提供桌面启动台组件，支持快捷启动应用与工具",
-  "author": "Trae",
+  "author": "OrbiBoard",
   "type": "plugin",
   "componentsDir": "widgets",
   "icon": "ri-rocket-2-line",
@@ -14,5 +14,10 @@
       "icon": "ri-settings-3-line"
     }
   ],
-  "enabled": true
+  "enabled": true,
+  "dependencies": [
+    {
+      "id": "desktop-widgets"
+    }
+  ]
 }

@@ -553,6 +553,13 @@
             row2.innerHTML = `<label>动作 (Action)</label><select id="pl-action"></select>`;
             container.appendChild(row2);
             
+            // Manual Input fallback
+            const rowManual = document.createElement('div');
+            rowManual.className = 'form-group';
+            rowManual.style.display = 'none'; // Hidden by default
+            rowManual.innerHTML = `<input type="text" id="pl-fn" value="${payload.fn || ''}" placeholder="输入函数名...">`;
+            container.appendChild(rowManual);
+
             const actSel = row2.querySelector('select');
             
             const updateActions = (pid) => {
@@ -595,13 +602,6 @@
             
             sel.onchange = () => updateActions(sel.value);
             if (sel.value) updateActions(sel.value);
-
-            // Manual Input fallback
-            const rowManual = document.createElement('div');
-            rowManual.className = 'form-group';
-            rowManual.style.display = 'none'; // Hidden by default
-            rowManual.innerHTML = `<input type="text" id="pl-fn" value="${payload.fn || ''}" placeholder="输入函数名...">`;
-            container.appendChild(rowManual);
             
             actSel.onchange = () => {
                 if (actSel.value === '__manual__') {

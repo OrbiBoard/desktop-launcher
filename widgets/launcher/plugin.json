@@ -3,6 +3,7 @@
   "name": "启动台",
   "version": "1.0.0",
   "type": "component",
+  "author": "OrbiBoard",
   "entry": "index.html",
   "description": "桌面快捷启动面板",
   "icon": "ri-rocket-2-line",
