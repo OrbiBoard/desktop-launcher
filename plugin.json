@@ -11,7 +11,8 @@
     {
       "id": "openSettings",
       "text": "打开设置",
-      "icon": "ri-settings-3-line"
+      "icon": "ri-settings-3-line",
+      "target": "openSettings"
     }
   ],
   "enabled": true,
@@ -19,5 +20,9 @@
     {
       "id": "desktop-widgets"
     }
-  ]
+  ],
+  "npmDependencies": {
+    "drivelist": "^12.0.2",
+    "check-disk-space": "^3.4.0"
+  }
 }
