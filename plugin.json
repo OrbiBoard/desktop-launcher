@@ -1,12 +1,44 @@
 {
   "id": "desktop-launcher",
-  "name": "桌面组件.启动台",
+  "name": "启动台",
   "version": "1.0.0",
-  "description": "提供桌面启动台组件，支持快捷启动应用与工具",
+  "description": "桌面快捷启动面板，支持应用与工具启动",
   "author": "OrbiBoard",
-  "type": "plugin",
-  "componentsDir": "widgets",
+  "type": "component",
+  "entry": "widgets/launcher/index.html",
+  "group": "desktop_widget",
   "icon": "ri-rocket-2-line",
+  "recommendedSize": {
+    "width": 380,
+    "height": 280
+  },
+  "configSchema": {
+    "buttons": {
+      "type": "array",
+      "title": "快捷按钮",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "title": "名称" },
+          "icon": { "type": "string", "title": "图标" },
+          "actionType": { "type": "string", "enum": ["plugin", "app", "key"], "title": "动作类型" },
+          "actionPayload": { "type": "object", "title": "动作参数" }
+        }
+      }
+    },
+    "apps": {
+      "type": "array",
+      "title": "桌面应用",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "title": "名称" },
+          "path": { "type": "string", "title": "路径" },
+          "icon": { "type": "string", "title": "图标" }
+        }
+      }
+    }
+  },
   "actions": [
     {
       "id": "openSettings",
@@ -16,13 +48,13 @@
     }
   ],
   "enabled": true,
+  "npmDependencies": {
+    "drivelist": "^12.0.2",
+    "check-disk-space": "^3.4.0"
+  },
   "dependencies": [
     {
       "id": "desktop-widgets"
     }
-  ],
-  "npmDependencies": {
-    "drivelist": "^12.0.2",
-    "check-disk-space": "^3.4.0"
-  }
+  ]
 }
