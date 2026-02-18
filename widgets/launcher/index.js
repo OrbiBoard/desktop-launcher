@@ -267,7 +267,7 @@ function renderApps() {
       </div>
       <div class="app-label" title="${app.label}">${app.label}</div>
     `;
-    el.onclick = () => handleAppLaunch(app);
+    el.onclick = () => handleAction(app);
     container.appendChild(el);
   });
 }
@@ -275,8 +275,18 @@ function renderApps() {
 function handleAction(btn) {
   console.log('Action:', btn);
   const ipcRenderer = require('electron').ipcRenderer;
-  if (btn.actionType === 'plugin') {
-      const payload = btn.actionPayload || {};
+  
+  // Normalize legacy app structure to action structure
+  let actionType = btn.actionType;
+  let actionPayload = btn.actionPayload;
+  
+  if (!actionType && btn.path) {
+      actionType = 'app';
+      actionPayload = { path: btn.path };
+  }
+
+  if (actionType === 'plugin') {
+      const payload = actionPayload || {};
       ipcRenderer.invoke('desktop-widgets:call-plugin', { 
           pluginId: payload.pluginId, 
           fn: payload.fn, 
@@ -284,33 +294,28 @@ function handleAction(btn) {
       }).then(res => {
           if (!res.ok) console.error('Plugin call failed:', res.error);
       });
-  } else if (btn.actionType === 'openSettings') {
+  } else if (actionType === 'openSettings') {
       ipcRenderer.invoke('desktop-widgets:call-plugin', { 
           pluginId: PLUGIN_ID, 
           fn: 'openSettings', 
           args: [] 
       });
-  } else if (btn.actionType === 'udisk') {
+  } else if (actionType === 'udisk') {
       window.openUdiskView();
-  } else if (btn.actionType === 'key') {
-      console.log('Simulate key:', btn.actionPayload);
+  } else if (actionType === 'key') {
+      console.log('Simulate key:', actionPayload);
       // Legacy support for old u-disk button config
-      if (btn.actionPayload && btn.actionPayload.key === 'u-disk') {
+      if (actionPayload && actionPayload.key === 'u-disk') {
           window.openUdiskView();
       }
-  } else if (btn.actionType === 'app') {
-      if (btn.actionPayload && btn.actionPayload.path) {
-          ipcRenderer.invoke('desktop-widgets:open-path', btn.actionPayload.path);
+  } else if (actionType === 'app') {
+      if (actionPayload && actionPayload.path) {
+          ipcRenderer.invoke('desktop-widgets:open-path', actionPayload.path);
       }
   }
 }
 
-function handleAppLaunch(app) {
-  console.log('Launch app:', app);
-  const ipcRenderer = require('electron').ipcRenderer;
-  if (app.path) {
-      ipcRenderer.invoke('desktop-widgets:open-path', app.path);
-  }
-}
+// Legacy handler removed, merged into handleAction
+// function handleAppLaunch(app) { ... }
 
 init();

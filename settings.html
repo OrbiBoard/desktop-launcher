@@ -291,16 +291,6 @@
         </div>
       </div>
 
-      <!-- App Specific -->
-      <div id="type-app-fields" style="display:none">
-        <div class="form-group">
-          <label>应用路径</label>
-          <div class="form-row">
-            <input type="text" id="inp-path" placeholder="C:\Program Files\...">
-            <button class="btn" id="btn-pick-app">选择...</button>
-          </div>
-        </div>
-      </div>
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
         <button class="btn" onclick="closeModal('edit-modal')">取消</button>
@@ -428,6 +418,12 @@
       const appList = document.getElementById('list-apps');
       appList.innerHTML = '';
       config.apps.forEach((item, idx) => {
+        // Normalize for display
+        if (!item.actionType && item.path) {
+            item.actionType = 'app';
+            item.actionPayload = { path: item.path };
+        }
+
         const div = document.createElement('div');
         div.className = 'list-item';
         let iconHtml = '';
@@ -441,7 +437,7 @@
           ${iconHtml}
           <div class="info">
             <div class="label">${item.label}</div>
-            <div class="sub">${item.path || '未设置路径'}</div>
+            <div class="sub">${getActionDesc(item)}</div>
           </div>
           <div class="actions">
             <button class="btn-icon" onclick="editItem('app', ${idx})"><i class="ri-pencil-line"></i></button>
@@ -457,8 +453,10 @@
             return `插件: ${item.actionPayload?.pluginId} / ${item.actionPayload?.fn}`;
         } else if (item.actionType === 'openSettings') {
             return '打开编辑模式';
+        } else if (item.actionType === 'app') {
+            return `应用: ${item.actionPayload?.path || item.path || ''}`;
         }
-        return item.actionType;
+        return item.actionType || '未定义';
     }
 
     window.editItem = (type, idx) => {
@@ -467,12 +465,17 @@
       let item = {};
       if (idx >= 0) {
         item = type === 'button' ? config.buttons[idx] : config.apps[idx];
+        // Normalize
+        if (!item.actionType && item.path) {
+            item.actionType = 'app';
+            item.actionPayload = { path: item.path };
+        }
       } else {
         // Default for new item
         if (type === 'button') {
             item = { label: '新按钮', icon: 'ri-star-line', actionType: 'plugin', actionPayload: {} };
         } else {
-            item = { label: '新应用', icon: 'ri-app-store-line', path: '' };
+            item = { label: '新应用', icon: 'ri-app-store-line', actionType: 'app', actionPayload: { path: '' } };
         }
       }
       
@@ -480,17 +483,13 @@
       document.getElementById('inp-label').value = item.label || '';
       document.getElementById('inp-icon').value = item.icon || '';
       
-      if (type === 'button') {
-        document.getElementById('type-button-fields').style.display = 'block';
-        document.getElementById('type-app-fields').style.display = 'none';
-        const at = item.actionType || 'plugin';
-        document.getElementById('inp-action-type').value = at;
-        renderPayloadFields(at, item.actionPayload || {});
-      } else {
-        document.getElementById('type-button-fields').style.display = 'none';
-        document.getElementById('type-app-fields').style.display = 'block';
-        document.getElementById('inp-path').value = item.path || '';
-      }
+      // Always show button fields (unified editor)
+       document.getElementById('type-button-fields').style.display = 'block';
+       // document.getElementById('type-app-fields').style.display = 'none'; // Removed
+       
+       const at = item.actionType || 'plugin';
+      document.getElementById('inp-action-type').value = at;
+      renderPayloadFields(at, item.actionPayload || {});
       
       document.getElementById('edit-modal').style.display = 'flex';
     };
@@ -562,6 +561,18 @@
 
             const actSel = row2.querySelector('select');
             
+            // Helper to auto-fill label and icon
+            const tryAutoFill = (pid, fnName) => {
+                const p = cachedPlugins.find(v => v.id === pid);
+                if (p && Array.isArray(p.actions)) {
+                    const act = p.actions.find(a => (a.target || a.id) === fnName);
+                    if (act) {
+                        if (act.text) document.getElementById('inp-label').value = act.text;
+                        if (act.icon) document.getElementById('inp-icon').value = act.icon;
+                    }
+                }
+            };
+
             const updateActions = (pid) => {
                 actSel.innerHTML = '';
                 const p = cachedPlugins.find(v => v.id === pid);
@@ -600,7 +611,15 @@
                 }
             };
             
-            sel.onchange = () => updateActions(sel.value);
+            sel.onchange = () => {
+                updateActions(sel.value);
+                // When plugin changes, default action is selected, so try auto-fill
+                if (sel.value) {
+                     // Wait for updateActions to populate actSel
+                     tryAutoFill(sel.value, actSel.value);
+                }
+            };
+            
             if (sel.value) updateActions(sel.value);
             
             actSel.onchange = () => {
@@ -610,6 +629,8 @@
                 } else {
                     rowManual.style.display = 'none';
                     document.getElementById('pl-fn').value = actSel.value;
+                    // Auto-fill on explicit action change
+                    tryAutoFill(sel.value, actSel.value);
                 }
             };
 
@@ -645,31 +666,32 @@
       
       let newItem = { label, icon };
       
+      // Unified saving logic for both buttons and apps
+      newItem.actionType = document.getElementById('inp-action-type').value;
+      newItem.actionPayload = {};
+      
+      if (newItem.actionType === 'plugin') {
+          newItem.actionPayload = {
+              pluginId: document.getElementById('pl-plugin-id').value,
+              fn: document.getElementById('pl-fn').value,
+              args: []
+          };
+          try {
+              newItem.actionPayload.args = JSON.parse(document.getElementById('pl-args').value);
+          } catch(e) {}
+      } else if (newItem.actionType === 'app') {
+          newItem.actionPayload = { path: document.getElementById('pl-path').value };
+      } else if (newItem.actionType === 'key') {
+          newItem.actionPayload = { key: document.getElementById('pl-key').value };
+      } else if (newItem.actionType === 'openSettings') {
+           // No payload
+      }
+      
       if (editingType === 'button') {
-        newItem.actionType = document.getElementById('inp-action-type').value;
-        newItem.actionPayload = {};
-        
-        if (newItem.actionType === 'plugin') {
-            newItem.actionPayload = {
-                pluginId: document.getElementById('pl-plugin-id').value,
-                fn: document.getElementById('pl-fn').value,
-                args: []
-            };
-            try {
-                newItem.actionPayload.args = JSON.parse(document.getElementById('pl-args').value);
-            } catch(e) {}
-        } else if (newItem.actionType === 'app') {
-            newItem.actionPayload = { path: document.getElementById('pl-path').value };
-        } else if (newItem.actionType === 'key') {
-            newItem.actionPayload = { key: document.getElementById('pl-key').value };
-        } else if (newItem.actionType === 'openSettings') {
-             // No payload
-        }
-        
         if (editingIndex === -1) config.buttons.push(newItem);
         else config.buttons[editingIndex] = newItem;
       } else {
-        newItem.path = document.getElementById('inp-path').value;
+        // Apps list now supports full action structure
         if (editingIndex === -1) config.apps.push(newItem);
         else config.apps[editingIndex] = newItem;
       }
@@ -716,10 +738,8 @@
     };
 
     // --- App Selector ---
-    document.getElementById('btn-pick-app').onclick = () => {
-        openAppSelectorLazy(document.getElementById('inp-path'));
-    };
-
+    // Dynamic buttons use openAppSelectorLazy directly
+    
     window.openAppSelectorLazy = async (targetInput) => {
         const modal = document.getElementById('app-modal');
         const list = document.getElementById('app-list');
