@@ -49,8 +49,7 @@
   ],
   "enabled": true,
   "npmDependencies": {
-    "drivelist": "^12.0.2",
-    "check-disk-space": "^3.4.0"
+    "usb": "^2.15.0"
   },
   "dependencies": [
     {

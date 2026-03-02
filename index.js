@@ -1,74 +1,99 @@
+let usb = null;
+let usbMonitorStarted = false;
+
 module.exports = {
   name: '桌面启动台',
   init: (api) => {
     console.log('Desktop Launcher plugin initialized');
     
-    // Register global functions for other plugins/components to call
-    // Note: To be called via 'call-plugin', they must be in 'functions' export or registered via api.
+    try {
+      usb = require('usb');
+    } catch (e) {
+      console.warn('usb module not available, USB hotplug detection disabled:', e.message);
+    }
   },
   functions: {
     getDiskList: async () => {
       try {
-        const drivelist = require('drivelist');
-        // check-disk-space might be esm or commonjs. robust require:
-        let checkDiskSpace = require('check-disk-space');
-        if (checkDiskSpace.default) checkDiskSpace = checkDiskSpace.default;
-
-        const drives = await drivelist.list();
-        const result = [];
+        const { execSync } = require('child_process');
+        const disks = new Map();
         
-        for (const drive of drives) {
-            // Filter: Removable OR (USB and NOT System)
-            const isUDisk = drive.isRemovable || (drive.isUSB && !drive.isSystem);
-            
-            if (isUDisk && drive.mountpoints && drive.mountpoints.length > 0) {
-                for (const mp of drive.mountpoints) {
-                    let free = 0;
-                    let size = 0;
-                    
-                    try {
-                        const space = await checkDiskSpace(mp.path);
-                        free = space.free;
-                        size = space.size;
-                    } catch (err) {
-                        // Fallback
-                        size = drive.size; 
-                    }
+        const getWmic = (cmd) => {
+          try {
+            return execSync(cmd, { encoding: 'utf8', timeout: 10000 });
+          } catch { return ''; }
+        };
+        
+        const removableOut = getWmic('wmic logicaldisk where "drivetype=2" get deviceid,volumename,size,freespace /format:csv');
+        removableOut.split('\n').forEach(line => {
+          const p = line.split(',');
+          if (p[1]?.match(/^[A-Z]:$/)) {
+            disks.set(p[1], { path: p[1], name: p[4]?.trim() || '可移动磁盘', free: parseInt(p[2]) || 0, size: parseInt(p[3]) || 0, isRemovable: true });
+          }
+        });
 
-                    result.push({
-                        path: mp.path,
-                        name: mp.label || drive.description || drive.displayName || '可移动磁盘',
-                        free: free,
-                        size: size,
-                        isRemovable: true
-                    });
-                }
+        const usbDrivesOut = getWmic('wmic path Win32_DiskDrive where "InterfaceType=\'USB\'" get Index /format:csv');
+        const usbDriveIndexes = new Set();
+        usbDrivesOut.split('\n').forEach(line => {
+          const m = line.match(/(\d+)/);
+          if (m) usbDriveIndexes.add(parseInt(m[1]));
+        });
+
+        if (usbDriveIndexes.size > 0) {
+          const diskToPartitionOut = getWmic('wmic path Win32_DiskDriveToDiskPartition get Antecedent,Dependent /format:csv');
+          const partitionToDisk = new Map();
+          diskToPartitionOut.split('\n').forEach(line => {
+            const antMatch = line.match(/Disk #(\d+)/);
+            const depMatch = line.match(/Partition #(\d+)/);
+            if (antMatch && depMatch) {
+              partitionToDisk.set(parseInt(depMatch[1]), parseInt(antMatch[1]));
             }
+          });
+
+          const logicalToPartitionOut = getWmic('wmic path Win32_LogicalDiskToPartition get Antecedent,Dependent /format:csv');
+          logicalToPartitionOut.split('\n').forEach(line => {
+            const partMatch = line.match(/Partition #(\d+)/);
+            const driveMatch = line.match(/([A-Z]:)/);
+            if (partMatch && driveMatch) {
+              const partNum = parseInt(partMatch[1]);
+              const diskNum = partitionToDisk.get(partNum);
+              if (diskNum !== undefined && usbDriveIndexes.has(diskNum) && !disks.has(driveMatch[1])) {
+                const infoOut = getWmic(`wmic logicaldisk where "DeviceID='${driveMatch[1]}'" get VolumeName,Size,FreeSpace /format:csv`);
+                infoOut.split('\n').forEach(il => {
+                  const ip = il.split(',');
+                  if (ip[1]?.trim() === driveMatch[1]) {
+                    disks.set(driveMatch[1], { path: driveMatch[1], name: ip[4]?.trim() || '移动硬盘', free: parseInt(ip[2]) || 0, size: parseInt(ip[3]) || 0, isRemovable: true });
+                  }
+                });
+              }
+            }
+          });
         }
-        
-        return { ok: true, disks: result };
+
+        return { ok: true, disks: Array.from(disks.values()) };
       } catch (e) {
         console.error('getDiskList error:', e);
         return { ok: false, error: e.message };
       }
     },
     ejectDisk: async (drivePath) => {
-        // drivePath e.g. "E:"
+        const { execSync } = require('child_process');
         return new Promise((resolve) => {
-            const { exec } = require('child_process');
-            // PowerShell Eject
-            const ps = `(New-Object -comObject Shell.Application).Namespace(17).ParseName("${drivePath}").InvokeVerb("Eject")`;
-            exec(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`, (err) => {
-                if (err) resolve({ ok: false, error: err.message });
-                else resolve({ ok: true });
-            });
+            try {
+              const cmd = `(New-Object -comObject Shell.Application).Namespace(17).ParseName("${drivePath}").InvokeVerb("Eject")`;
+              execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${cmd}"`, {
+                timeout: 10000
+              });
+              resolve({ ok: true });
+            } catch (err) {
+              resolve({ ok: false, error: err.message });
+            }
         });
     },
     openSettings: () => {
       const { BrowserWindow } = require('electron');
       const path = require('path');
       
-      // Singleton check
       if (global.desktopLauncherSettingsWin && !global.desktopLauncherSettingsWin.isDestroyed()) {
           global.desktopLauncherSettingsWin.show();
           global.desktopLauncherSettingsWin.focus();
@@ -85,7 +110,7 @@ module.exports = {
         },
         autoHideMenuBar: true,
         backgroundColor: '#121212',
-        frame: false, // Frameless
+        frame: false,
         show: false
       });
       
@@ -107,26 +132,92 @@ module.exports = {
     getFileIconDataUrl: async (p) => {
         try {
           const { app } = require('electron');
-          const { execFileSync } = require('child_process');
-          
           const fp = String(p||''); if (!fp) return '';
           let usePath = fp;
           
-          // Resolve shortcut if necessary
-          try {
-             if (String(fp).toLowerCase().endsWith('.lnk')) {
-                const cmd = `(New-Object -COM WScript.Shell).CreateShortcut('${fp.replace(/'/g, "''")}').TargetPath`;
-                const out = execFileSync('powershell', ['-NoProfile','-ExecutionPolicy','Bypass','-Command', cmd], { encoding: 'utf8' });
-                if (out && out.trim()) usePath = out.trim();
-             }
-          } catch (e) {}
+          if (String(fp).toLowerCase().endsWith('.lnk')) {
+            try {
+              const { execSync } = require('child_process');
+              const cmd = `wmic process where "name='explorer.exe'" call create "cmd /c echo %USERPROFILE%"`;
+              const targetCmd = `(New-Object -COM WScript.Shell).CreateShortcut('${fp.replace(/'/g, "''")}').TargetPath`;
+              const out = execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${targetCmd}"`, { encoding: 'utf8', timeout: 5000 });
+              if (out && out.trim()) usePath = out.trim();
+            } catch (e) {}
+          }
           
-          // Get native icon from Electron
           const img = await app.getFileIcon(usePath, { size: 'large' });
           
           if (!img || img.isEmpty()) return '';
           return img.toDataURL();
         } catch (e) { return ''; }
+    },
+    startUsbMonitor: (callback) => {
+      if (!usb) {
+        return { ok: false, error: 'usb module not available' };
+      }
+      
+      if (usbMonitorStarted) {
+        return { ok: true, message: 'USB monitor already started' };
+      }
+      
+      try {
+        usb.on('attach', (device) => {
+          console.log('USB device attached:', device);
+          if (typeof callback === 'function') {
+            callback({ type: 'attach', device });
+          }
+        });
+        
+        usb.on('detach', (device) => {
+          console.log('USB device detached:', device);
+          if (typeof callback === 'function') {
+            callback({ type: 'detach', device });
+          }
+        });
+        
+        usbMonitorStarted = true;
+        return { ok: true, message: 'USB monitor started' };
+      } catch (e) {
+        console.error('Failed to start USB monitor:', e);
+        return { ok: false, error: e.message };
+      }
+    },
+    stopUsbMonitor: () => {
+      if (!usb) {
+        return { ok: false, error: 'usb module not available' };
+      }
+      
+      try {
+        usb.removeAllListeners('attach');
+        usb.removeAllListeners('detach');
+        usbMonitorStarted = false;
+        return { ok: true, message: 'USB monitor stopped' };
+      } catch (e) {
+        console.error('Failed to stop USB monitor:', e);
+        return { ok: false, error: e.message };
+      }
+    },
+    getUsbDeviceList: () => {
+      if (!usb) {
+        return { ok: false, error: 'usb module not available', devices: [] };
+      }
+      
+      try {
+        const { getDeviceList } = usb;
+        const devices = getDeviceList();
+        const deviceList = devices.map(d => ({
+          busNumber: d.busNumber,
+          deviceAddress: d.deviceAddress,
+          vendorId: d.deviceDescriptor?.idVendor,
+          productId: d.deviceDescriptor?.idProduct,
+          manufacturer: d.deviceDescriptor?.iManufacturer,
+          product: d.deviceDescriptor?.iProduct
+        }));
+        return { ok: true, devices: deviceList };
+      } catch (e) {
+        console.error('Failed to get USB device list:', e);
+        return { ok: false, error: e.message, devices: [] };
+      }
     }
   }
 };
