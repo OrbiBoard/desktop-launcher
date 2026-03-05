@@ -1,7 +1,7 @@
 {
   "id": "desktop-launcher",
   "name": "启动台",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "桌面快捷启动面板，支持应用与工具启动",
   "author": "OrbiBoard",
   "type": "component",
@@ -19,10 +19,27 @@
       "items": {
         "type": "object",
         "properties": {
-          "label": { "type": "string", "title": "名称" },
-          "icon": { "type": "string", "title": "图标" },
-          "actionType": { "type": "string", "enum": ["plugin", "app", "key"], "title": "动作类型" },
-          "actionPayload": { "type": "object", "title": "动作参数" }
+          "label": {
+            "type": "string",
+            "title": "名称"
+          },
+          "icon": {
+            "type": "string",
+            "title": "图标"
+          },
+          "actionType": {
+            "type": "string",
+            "enum": [
+              "plugin",
+              "app",
+              "key"
+            ],
+            "title": "动作类型"
+          },
+          "actionPayload": {
+            "type": "object",
+            "title": "动作参数"
+          }
         }
       }
     },
@@ -32,9 +49,18 @@
       "items": {
         "type": "object",
         "properties": {
-          "label": { "type": "string", "title": "名称" },
-          "path": { "type": "string", "title": "路径" },
-          "icon": { "type": "string", "title": "图标" }
+          "label": {
+            "type": "string",
+            "title": "名称"
+          },
+          "path": {
+            "type": "string",
+            "title": "路径"
+          },
+          "icon": {
+            "type": "string",
+            "title": "图标"
+          }
         }
       }
     }
